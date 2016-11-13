@@ -1,0 +1,21 @@
+{application, 'epush4',
+ [{description, "An OTP application"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {'epush4_app', []}},
+  {applications,
+   [kernel,
+    stdlib,
+    jsx,
+    chatterbox,
+    erespool,
+    ecld,
+    ibrowse
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {contributors, []},
+  {licenses, []},
+  {links, []}
+ ]}.
