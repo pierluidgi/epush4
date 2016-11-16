@@ -1,6 +1,6 @@
 -module(epush4).
 
--export([pool/2, slot/2, send/2]).
+-export([pool/2, slot/2, send/2, sync_send/2]).
 -export([t_pool/0, t_slot/0, t_send/0]).
 
 
@@ -10,6 +10,11 @@ send(Tokens, PushEnv) ->
   Md5Fun = fun(Bin) -> base64:encode(crypto:hash(md5, Bin)) end,
   Key = Md5Fun(term_to_binary(PushEnv)),
   epush4_chunk:cast(Key, {add, Tokens}, PushEnv, force_start).
+
+sync_send(Tokens, PushEnv) -> 
+  Md5Fun = fun(Bin) -> base64:encode(crypto:hash(md5, Bin)) end,
+  Key = Md5Fun(term_to_binary(PushEnv)),
+  epush4_chunk:call(Key, {add, Tokens}, PushEnv, force_start).
 
 pool(Pool, PoolData) ->
   epush4_data:add_pool(Pool),
