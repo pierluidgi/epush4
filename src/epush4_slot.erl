@@ -19,7 +19,7 @@
 -export([get_data/1, set_data/2]).
 -export([get_stat/1, set_stat/2, get_and_flush_stat/1]).
 
--include("epush4.hrl").
+-include("../include/epush4.hrl").
 
 
 %
@@ -112,7 +112,7 @@ call(Slot, Msg, Mode) ->
 
 
 get_data(Slot) ->
-  call(Slot, get, force_start).
+  call(Slot, get, info).
 get_(S = #{data := Data}) ->
   case S of 
     #{timeout := Timeout} -> {reply, Data#{pid => self()}, S, Timeout}; 
