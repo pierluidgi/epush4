@@ -21,15 +21,14 @@
 
 -export([state/1]).
 
--include("epush4.hrl").
-
+-include("../include/epush4.hrl").
 
 -define(TIMEOUT, 3*60 + random_int(50)).  %% + random for smooth
 -define(ITTL, 1 * 1 * 20 * 1000).        %% Idle process time to live
 
 
 
-
+%
 start_link(#{start := true, args := Args = #{slot := Slot, 
                                              token_vars := #{<<"platform">> := Platform}}}) ->
   ?INF("start_link", {Slot, Platform}),
@@ -63,30 +62,28 @@ init(Args) ->
   %?INF("slot data", SlotData),
 
   Policy  = maps:get(policy, Args, #{<<"name">> => <<"simple">>}),
-  Payload = case epush4_payload:payload(TokenVars, SlotData, PushVars) of
-    {ok, Value1} -> Value1;
-    Else -> erlang:error(Else)
-  end,
-
-  Now        = ?now, 
-  Timeout    = ?TIMEOUT,
-  S = #{
-    slot        => Slot,
-    token_src   => maps:get(<<"token_src">>, SlotData, <<"db">>),
-    pool        => Pool,
-    policy      => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
-    state       => free,      %% if command send is sent
-    platform    => Platform,
-    last_add    => ?now,
-    until       => Now + Timeout,
-    tokens      => [],
-    payload     => Payload,
-    fmfa        => Feedback,  %% {M,F,A} for feedback
-    stat        => [],
-    log         => []
-  },
-  {ok, S, Timeout}.
-
+  case epush4_payload:payload(TokenVars, SlotData, PushVars) of
+    {ok, Payload} ->
+      Now        = ?now, 
+      Timeout    = ?TIMEOUT,
+      S = #{
+        slot      => Slot,
+        token_src => maps:get(<<"token_src">>, SlotData, <<"db">>),
+        pool      => Pool,
+        policy    => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
+        state     => free,      %% if command send is sent
+        platform  => Platform,
+        last_add  => ?now,
+        until     => Now + Timeout,
+        tokens    => [],
+        payload   => Payload,
+        fmfa      => Feedback,  %% {M,F,A} for feedback
+        stat      => [],
+        log       => []},
+      {ok, S, Timeout};
+    Else ->
+      {stop, Else}
+  end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -155,8 +152,8 @@ cast(Key, Msg, Args, Mode, Delay) ->
 random_int(1) -> 1;
 random_int(N) ->
   {A,B,C} = erlang:timestamp(),
-  random:seed(A,B,C),
-  random:uniform(N).
+  rand:seed(exs64, {A,B,C}),
+  rand:uniform(N).
 
 log_(_S = #{log := Log}) -> Log.
 state(Key) ->

@@ -3,7 +3,7 @@
 
 -export([payload/3]).
 
--include("epush4.hrl").
+-include("../include/epush4.hrl").
 
 
 %% TokenVars = #{<<"lang">> => <<"en">>,<<"platform">> => <<"ios">>}},
@@ -12,7 +12,13 @@
 payload(TokenData = #{<<"platform">> := Platform}, SlotData, PushData) when Platform == <<"ios">> ->
   ios_p(TokenData, SlotData, PushData);
 payload(TokenData = #{<<"platform">> := Platform}, SlotData, PushData) when Platform == <<"android">> ->
-  android_p(TokenData, SlotData, PushData).
+  android_p(TokenData, SlotData, PushData);
+payload(TokenData = #{<<"platform">> := Platform}, SlotData, PushData) when Platform == <<"windows">> ->
+  windows_p(TokenData, SlotData, PushData);
+payload(#{<<"platform">> := Platform}, _SlotData, _PushData) when is_binary(Platform) ->
+  ?e(unsuported_platform).
+
+
 
 
 
@@ -22,7 +28,7 @@ ios_p(TokenVars, SlotData, _PushVars) ->
   S = #{
     status  => ok,
     lang    => maps:get(<<"lang">>, TokenVars, <<"en">>),
-    tz      => maps:get(<<"tz">>,   TokenVars, <<"5">>),
+    tz      => maps:get(<<"tz">>,   TokenVars, <<"-5">>),
     push    => maps:get(push_data,  SlotData),
     aps     => #{},
     payload => #{}},
@@ -70,13 +76,14 @@ ios_p_paylo(S = #{payload := PayLoad, aps := Aps}) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ANDROID {{{
 android_p(TokenVars, SlotData, _PushVars) ->
   S = #{
     status  => ok,
     lang    => maps:get(<<"lang">>, TokenVars, <<"en">>),
-    tz      => maps:get(<<"tz">>,   TokenVars, <<"5">>),
+    tz      => maps:get(<<"tz">>,   TokenVars, <<"-5">>),
     push    => maps:get(push_data,  SlotData),
     msg     => #{},
     payload => #{}},
@@ -120,6 +127,56 @@ android_p_extra(S= #{push := Push, msg := Msg}) ->
 
 android_p_paylo(S = #{payload := PayLoad, msg := Msg}) ->
   S#{payload := PayLoad#{<<"data">> => Msg}}.
+%%}}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% WINDOWS {{{
+windows_p(TokenData, SlotData, _PushData) ->
+    S = #{
+    status  => ok,
+    lang    => maps:get(<<"lang">>, TokenData, <<"en">>),
+    tz      => maps:get(<<"tz">>,   TokenData, <<"-5">>),
+    push    => maps:get(push_data,  SlotData),
+    text    => u,
+    payload => #{}},
+
+  Funs = [
+    fun windows_p_text/1,
+    fun windows_p_paylo/1
+  ],
+
+  %% Case recursion tru FunList
+  R = case epush4_misc:c_r(Funs, S) of
+    #{status := ok, payload := P} -> {ok, P};
+    #{status := Else} -> Else
+  end,
+  R.
+
+windows_p_text(S = #{push := Push, lang := Lang}) ->
+  ?INF("windows_p_text", Push),
+  Text =
+    begin
+        #{<<"text">> := Texts} = Push,
+        Default = maps:get(<<"en">>, Texts),
+        maps:get(Lang, Texts, Default)
+    end,
+  S#{text := Text}.
+
+windows_p_paylo(S = #{text := Text}) ->
+  PayLoad = 
+<<"
+<toast launch=\"\" duration=\"long\">
+  <visual>
+    <binding template=\"ToastImageAndText01\">
+      <image id=\"1\" src=\"ms-appx:///Assets/150x150.png\" />
+      <text id=\"1\">", Text/binary, "</text>
+    </binding>
+  </visual>
+</toast>">>,
+  S#{payload := PayLoad}.
 %%}}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
