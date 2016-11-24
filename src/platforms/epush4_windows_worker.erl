@@ -12,7 +12,7 @@
          terminate/2,
          code_change/3]).
 
--include("epush4.hrl").
+-include("../include/epush4.hrl").
 
 -define(TIMEOUT, 10 * 60 * 1000).
 
@@ -26,9 +26,11 @@ stop(Pid) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
 init(Args) ->
-  {ok, Key} = req_key(Args),
-  %?INF("Start", self()),
-  {ok, Args#{key => Key}, ?TIMEOUT}.
+  %?INF("init Args", Args),
+  case req_key(Args) of
+    {ok, Key} -> {ok, Args#{key => Key}, ?TIMEOUT};
+    Else -> {stop, Else}
+  end.
 %
 terminate(_Reason, _S) -> 
   ok.
@@ -82,9 +84,7 @@ req_key(#{client_id := ClientID, client_key := ClientKey}) ->
       AuthValue = binary_to_list(<<"Bearer ", AccessToken/binary>>),
       {ok, AuthValue};
     Else ->
-      ?INF("Windows access error", Else),
-      io:format("~w:~w microsoft err response ~p~n", [?MODULE, ?LINE, Else]),
-      ?e(get_access_fail)
+      ?e(get_access_fail, ?p(Else))
   end.
 
 
