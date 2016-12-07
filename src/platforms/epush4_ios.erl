@@ -5,7 +5,7 @@
 
 -module(epush4_ios).
 
--include("epush4.hrl").
+-include("../../include/epush4.hrl").
 
 
 -export([push/3]).
@@ -23,12 +23,12 @@ push(Conn, Token, Payload) ->
 
 
 
-res_parse({ok, {Headers, [BodyJson]}}) ->
-  BodyMap     = jsx:decode(BodyJson, [return_maps]),
-  HeadersMap  = maps:from_list(Headers),
+res_parse({ok, {Headers, Body}}) ->
+  BodyMap    = case Body of [] -> #{}; [BodyJson] -> jsx:decode(BodyJson, [return_maps]) end,
+  HeadersMap = maps:from_list(Headers),
   case maps:merge(HeadersMap, BodyMap) of
     #{<<":status">> := <<"200">>} -> ok;
-    #{<<":status">> := <<"400">>, <<"reason">> := <<"BadDeviceToken">>} -> {err, {bad_token, ?p}};
+    #{<<":status">> := <<"400">>, <<"reason">> := <<"BadDeviceToken">>} -> {err, {not_registered, ?p}};
     Else ->
       io:format("IOS push result ~p~n", [{?p, Else}]),
       {err, {unknown_error, ?p}}

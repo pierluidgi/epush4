@@ -1,7 +1,7 @@
 %%
--module(epush4_android_worker).
+-module(epush4_facebook_worker).
 
--behaviour(gen_server).
+-behaviou(gen_server).
 
 -export([start/1, stop/1]).
 
@@ -25,9 +25,9 @@ stop(Pid) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%
-init(Args = #{key := Key}) when is_list(Key) ->
+init(Args) ->
   %?INF("Start", self()),
-  {ok, Args, ?TIMEOUT}.
+  {ok, Args}.
 %
 terminate(_Reason, _S) -> 
   ok.
@@ -40,19 +40,20 @@ code_change(_OldVersion, S, _Extra) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Gen Server api
-handle_info(timeout, S)             -> {stop, normal, S};
-handle_info(Msg, S)                 -> io:format("Unk msg ~p~n", [{self(), Msg}]), {noreply, S, ?TIMEOUT}.
+handle_info(timeout, S)             -> {noreply, S};
+handle_info(Msg, S)                 -> io:format("Unk msg ~p~n", [{self(), Msg}]), {noreply, S}.
 %%casts
-handle_cast(Msg, S)                 -> io:format("Unk msg ~p~n", [{?p, Msg}]), {noreply, S, ?TIMEOUT}.
+handle_cast(Msg, S)                 -> io:format("Unk msg ~p~n", [{?p, Msg}]), {noreply, S}.
 %%calls
 handle_call(get_key,_From, S)       -> get_key_(S);
-handle_call(Req,_From, S)           -> {reply, {err, unknown_command, ?p(Req)}, S, ?TIMEOUT}.
+handle_call(Req,_From, S)           -> {reply, {err, unknown_command, ?p(Req)}, S}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% API
-get_key_(S = #{key := Key}) -> {reply, {ok, Key}, S, ?TIMEOUT}.
+get_key_(S = #{key := Key}) -> {reply, {ok, Key}, S}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+

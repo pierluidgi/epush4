@@ -4,17 +4,19 @@
 -export([t_pool/0, t_slot/0, t_send/0]).
 
 
+%%
+%% Tokens = [binary()] | [#{<<"token">> => Token::binary(), <<"else_push_var1">> := ..., ...}]
+%%
 
-
-send(Tokens, PushEnv) -> 
+send(Tokens, PushTags) -> 
   Md5Fun = fun(Bin) -> base64:encode(crypto:hash(md5, Bin)) end,
-  Key = Md5Fun(term_to_binary(PushEnv)),
-  epush4_chunk:cast(Key, {add, Tokens}, PushEnv, force_start).
+  Key = Md5Fun(term_to_binary(PushTags)),
+  epush4_chunk:cast(Key, {add, Tokens}, PushTags, force_start).
 
-sync_send(Tokens, PushEnv) -> 
+sync_send(Tokens, PushTags) ->
   Md5Fun = fun(Bin) -> base64:encode(crypto:hash(md5, Bin)) end,
-  Key = Md5Fun(term_to_binary(PushEnv)),
-  epush4_chunk:call(Key, {add, Tokens}, PushEnv, force_start).
+  Key = Md5Fun(term_to_binary(PushTags)),
+  epush4_chunk:call(Key, {add, Tokens}, PushTags, force_start).
 
 pool(Pool, PoolData) ->
   epush4_data:add_pool(Pool),

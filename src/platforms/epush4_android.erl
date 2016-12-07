@@ -9,15 +9,15 @@
 
 -module(epush4_android).
 
--include("epush4.hrl").
+-include("../../include/epush4.hrl").
 
 -export([push/3]).
 
 
 
 %% 
-%-define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
--define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
+-define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
+%-define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
 -define(SEND_TIMEOUT, 5000).
 
 
@@ -31,21 +31,16 @@
 
 
 
-push(Conn, #{<<"token">> := Token}, Payload) ->
-  push(Conn, Token, Payload);
-push(Conn, Token, Payload) ->
+push(Key, #{<<"token">> := Token}, Payload) ->
+  push(Key, Token, Payload);
+push(Key, Token, Payload) ->
   %io:format("~w:~w Msg ~p~n", [?MODULE, ?LINE, Msg]),
-  case gen_server:call(Conn, get_key) of
-    {ok, Key} ->
-      Options = ?IBROWSE_OPTIONS("application/json"),
-      Headers = [
-        {"Authorization", lists:append("key=", Key)},
-        {"Content-Type", "application/json"}],
-      AndroidMsg = jsx:encode(Payload#{<<"to">> => Token}),
-      send_message(Options, Headers, Token, AndroidMsg);
-    Else ->
-      ?e(pool_error, Else)
-  end.
+  Options = ?IBROWSE_OPTIONS("application/json"),
+  Headers = [
+    {"Authorization", lists:append("key=", Key)},
+    {"Content-Type", "application/json"}],
+  AndroidMsg = jsx:encode(Payload#{<<"to">> => Token}),
+  send_message(Options, Headers, Token, AndroidMsg).
 
 
 %
@@ -71,6 +66,7 @@ parse_answer(Json) ->
        (#{<<"error">> := <<"Unavailable">>})         -> ?e(service_unavailable);   
        (#{<<"error">> := <<"InvalidRegistration">>}) -> ?e(invalid_registration);  %% Drop this error
        (#{<<"error">> := <<"NotRegistered">>})       -> ?e(not_registered);        %% Delete token
+       (#{<<"error">> := <<"MismatchSenderId">>})    -> ?e(wrong_app_key);         %% Drop this error
        (Else)                                        -> ?e(unknown_response_error, Else) %% Drop unknown error
     end,
 

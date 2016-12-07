@@ -1,9 +1,14 @@
 -module(epush4_policy_simple).
 
--include("epush4.hrl").
+-include("../../include/epush4.hrl").
 
 -export([timeout/1, add/2, send/1]).
 
+
+% Send pushes by packs size in 100 pushes
+-define(SEND_PUSHES_NUM, 100). 
+% Max Time for send pack
+-define(CONN_LEASE_TIME, 50000).
 
 
 %
@@ -62,20 +67,25 @@ send(S = #{pool      := Pool,
            tokens    := Tokens}) ->
   
   case get_conn(Pool) of
-    {ok, Conn} ->
-      SendFun = fun
-        (Fu, [T|Ts], N, Acc) when N > 0 ->
-            case do_send(Platform, Conn, T, Payload) of
-              conn_error  -> {[T|Ts], [conn_error|Acc], err_timeout(conn_error)};
-              Res         -> Fu(Fu, Ts, N-1, [{T, Res}|Acc])
-            end;
-        (_F, Ts, N, Acc) when Ts == []; N =< 0 -> {Ts, Acc, 0}
-      end,
-      {NewTokens, ResultAcc, Timeout} = SendFun(SendFun, Tokens, 1000, []),
-      ret_conn(Pool, Conn),
-      manage_response(S, ResultAcc),
-      {noreply, S#{state := free, tokens := NewTokens}, Timeout};
-
+    {ok, ConnPid} ->
+      case get_key(ConnPid, Platform) of
+        {ok, Conn} ->
+          SendFun = fun
+            (Fu, [T|Ts], N, Acc) when N > 0 ->
+                case do_send(Platform, Conn, T, Payload) of
+                  conn_error  -> {[T|Ts], [conn_error|Acc], err_timeout(conn_error)};
+                  Res         -> Fu(Fu, Ts, N-1, [{T, Res}|Acc])
+                end;
+            (_F, Ts, N, Acc) when Ts == []; N =< 0 -> {Ts, Acc, 0}
+          end,
+          {NewTokens, ResultAcc, Timeout} = SendFun(SendFun, Tokens, ?SEND_PUSHES_NUM, []),
+          ret_conn(Pool, ConnPid),
+          manage_response(S, ResultAcc),
+          {noreply, S#{state := free, tokens := NewTokens}, Timeout};
+        Else -> 
+          ?INF("Error", Else),
+          {noreply, S#{state := free, tokens := []}, 0}
+      end;
     timeout -> 
       %% TODO SOMETHING
       {noreply, S#{state := free}, err_timeout(conn_timeout)};
@@ -85,9 +95,10 @@ send(S = #{pool      := Pool,
   end.
 
 
-do_send(<<"ios">>,     C, T, P) -> epush4_ios:push(C, T, P);
-do_send(<<"android">>, C, T, P) -> epush4_android:push(C, T, P);
-do_send(<<"windows">>, C, T, P) -> epush4_windows:push(C, T, P).
+do_send(<<"ios">>,      C, T, P) -> epush4_ios:push(C, T, P);
+do_send(<<"android">>,  C, T, P) -> epush4_android:push(C, T, P);
+do_send(<<"windows">>,  C, T, P) -> epush4_windows:push(C, T, P);
+do_send(<<"facebook">>, C, T, P) -> epush4_facebook:push(C, T, P).
 %
 err_timeout(conn_error)    -> ?now + 50000 + random_int(20000);
 err_timeout(conn_timeout)  -> ?now + 50000 + random_int(20000).
@@ -134,16 +145,25 @@ manage_response(#{slot      := Slot,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conns
 get_conn(Pool) ->
-  ers:get_conn(Pool, _LeaseTime = 10000, _Timeout = 500). %% wait for free conection 10sec
+  ers:get_conn(Pool, _LeaseTime = ?CONN_LEASE_TIME, _Timeout = 1500). %% wait for free conection 10sec
 ret_conn(Pool, Conn) ->
   ers:ret_conn(Pool, Conn).
+
+      
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Keys
+get_key(ConnPid, Platform) ->
+  case Platform of
+    <<"ios">>       -> {ok, ConnPid};
+    <<"windows">>   -> gen_server:call(ConnPid, get_key);
+    <<"facebook">>  -> gen_server:call(ConnPid, get_key);
+    <<"android">>   -> gen_server:call(ConnPid, get_key);
+    _               -> ?e(wrong_platfrom)
+  end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SYS MISC
 random_int(1) -> 1;
-random_int(N) ->
-  {A,B,C} = erlang:timestamp(),
-  random:seed(A,B,C),
-  random:uniform(N).
+random_int(N) -> rand:uniform(N).
 

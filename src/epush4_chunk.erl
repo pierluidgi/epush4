@@ -29,8 +29,8 @@
 
 
 %
-start_link(#{start := true, args := Args = #{slot := Slot, 
-                                             token_vars := #{<<"platform">> := Platform}}}) ->
+start_link(#{start := true, args := Args = #{<<"slot">>     := Slot, 
+                                             <<"platform">> := Platform}}) ->
   ?INF("start_link", {Slot, Platform}),
   gen_server:start_link(?MODULE, Args, []);
 %
@@ -43,31 +43,42 @@ start_link(_) ->
 
 
 
-init(Args) ->
+init(PushTags) ->
   %erlang:process_flag(trap_exit, true),
-  Slot        = maps:get(slot, Args),
-  TokenVars   = maps:get(token_vars, Args),
-  PushVars    = maps:get(push_vars, Args),
-  Platform    = maps:get(<<"platform">>, TokenVars),
+  Slot        = maps:get(<<"slot">>, PushTags),
+  Platform    = maps:get(<<"platform">>, PushTags),
   
 
   SlotData    = epush4_slot:get_data(Slot),
-  Feedback    = maps:get(feedback, SlotData, u),
+  %?INF("slot data", {Slot, Platform, SlotData}),
   PlatformData = case SlotData of
     #{platforms := #{Platform := Value}} -> Value;
     _ -> erlang:error(wrong_platform)
   end,
-  Pool        = maps:get(pool_name, PlatformData),
   
-  %?INF("slot data", SlotData),
+  Policy     = maps:get(policy, SlotData, <<"simple">>),
+  Pool       = maps:get(pool_name, PlatformData),
+  Feedback   = maps:get(feedback_mfa, PlatformData, u),
+  PayloadMFA = maps:get(payload_mfa, PlatformData, u),
+  TryPayload = case Policy of
+    <<"opop">> -> {ok, <<"opop">>};
+    _ ->
+      {PM, PF, PA} = PayloadMFA,
+      try erlang:apply(PM, PF, lists:append(PA, [PushTags, SlotData]))
+      catch E:R ->
+        ?INF("Payload generate error", {E,R, {PM, PF, lists:append(PA, [PushTags, SlotData])}}),
+        ?e(gen_payload_error)
+      end
+  end,
 
-  Policy  = maps:get(policy, Args, #{<<"name">> => <<"simple">>}),
-  case epush4_payload:payload(TokenVars, SlotData, PushVars) of
+
+  case TryPayload of
     {ok, Payload} ->
       Now        = ?now, 
       Timeout    = ?TIMEOUT,
       S = #{
         slot      => Slot,
+        slot_data => SlotData,
         token_src => maps:get(<<"token_src">>, SlotData, <<"db">>),
         pool      => Pool,
         policy    => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
@@ -77,9 +88,14 @@ init(Args) ->
         until     => Now + Timeout,
         tokens    => [],
         payload   => Payload,
+        pmfa      => PayloadMFA,
         fmfa      => Feedback,  %% {M,F,A} for feedback
         stat      => [],
         log       => []},
+
+      %% link to slot
+      %process_flag(trap_exit, true),
+      %link(maps:get(pid, SlotData)),
       {ok, S, Timeout};
     Else ->
       {stop, Else}
@@ -89,7 +105,7 @@ init(Args) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Gen Server api
 handle_info(timeout, State) -> timeout_(State);
-handle_info(Msg, S) -> io:format("Unk msg ~p~n", [Msg]), {noreply, S, 0}.
+handle_info(Msg, S) -> ?INF("Unk msg:", Msg), {noreply, S, 0}.
 code_change(_OldVersion, State, _Extra) -> {ok, State}.
 terminate(_Reason, _State) -> ok.
 %%casts
@@ -150,10 +166,7 @@ cast(Key, Msg, Args, Mode, Delay) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SYS MISC
 random_int(1) -> 1;
-random_int(N) ->
-  {A,B,C} = erlang:timestamp(),
-  rand:seed(exs64, {A,B,C}),
-  rand:uniform(N).
+random_int(N) -> rand:uniform(N).
 
 log_(_S = #{log := Log}) -> Log.
 state(Key) ->
@@ -170,17 +183,21 @@ state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
 %% @doc Token = binary() || #{progress := Progress}
 %% Progress = map() #{tries := 1, last_try := Time}
 %
-add_(S = #{policy := #{<<"name">> := PName}}, Msg) when PName == <<"simple">> ->
-  NewS = epush4_policy_simple:add(S, Msg),
-  {reply, ok, NewS, 500}.
+% simple - default policy with deduplications
+% opop - one_push_one_payload
+%
+add_(S = #{policy := <<"simple">>},Msg) -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
+add_(S = #{policy := <<"opop">>},  Msg) -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
+
 
 %
-send_(S = #{policy := #{<<"name">> := PName}}) when PName == <<"simple">> ->
-  epush4_policy_simple:send(S).
+send_(S = #{policy := <<"simple">>}) -> epush4_policy_simple:send(S);
+send_(S = #{policy := <<"opop">>})   -> epush4_policy_opop:send(S).
+
 
 %
-timeout_(S = #{policy := #{<<"name">> := PName}}) when PName == <<"simple">> ->
-  epush4_policy_simple:timeout(S).
+timeout_(S = #{policy := <<"simple">>}) -> epush4_policy_simple:timeout(S);
+timeout_(S = #{policy := <<"opop">>})   -> epush4_policy_opop:timeout(S).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -150,8 +150,8 @@ get_stat(Slot) ->
   call(Slot, get_stat, force_start).
 get_stat_(S = #{stat := Stat}) ->
   case S of 
-    #{timeout := Timeout} -> {reply, Stat, S, Timeout};
-    _                     -> {reply, Stat, S} 
+    #{timeout := Timeout} -> {reply, {ok, Stat}, S, Timeout};
+    _                     -> {reply, {ok, Stat}, S} 
   end.     
 
 
