@@ -39,7 +39,7 @@ push(Key, Token, Payload) ->
   
   try
     case ibrowse:send_req(binary_to_list(Token), Headers, post, Payload, Options, 3000) of
-      {ok, "200", _RetHeaders, _BodyData} -> ok;
+      {ok, "200", _RetHeaders, _BodyData} -> {ok, ?p};
       {ok, "401", _RetHeaders, _BodyData} -> ?e(wrong_key);
       {ok, "403", _RetHeaders, _BodyData} -> ?e(wrong_app_key);
       {ok, "410", _RetHeaders, _BodyData} -> ?e(not_registered);

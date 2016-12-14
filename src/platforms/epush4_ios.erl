@@ -27,15 +27,15 @@ res_parse({ok, {Headers, Body}}) ->
   BodyMap    = case Body of [] -> #{}; [BodyJson] -> jsx:decode(BodyJson, [return_maps]) end,
   HeadersMap = maps:from_list(Headers),
   case maps:merge(HeadersMap, BodyMap) of
-    #{<<":status">> := <<"200">>} -> ok;
-    #{<<":status">> := <<"400">>, <<"reason">> := <<"BadDeviceToken">>} -> {err, {not_registered, ?p}};
+    #{<<":status">> := <<"200">>} -> {ok, ?p};
+    #{<<":status">> := <<"410">>} -> ?e(not_registered);
     Else ->
-      io:format("IOS push result ~p~n", [{?p, Else}]),
-      {err, {unknown_error, ?p}}
+      ?INF("IOS push error:", Else),
+      ?e(unknown_error)
   end;
 
 %%
 res_parse(ElseRes) ->
-  io:format("IOS push result ~p~n", [{?p, ElseRes}]),
-  {err, {unknown_error, ?p}}.
+  ?INF("IOS push error:", ElseRes),
+  ?e(unknown_error).
 

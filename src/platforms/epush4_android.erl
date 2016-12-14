@@ -62,7 +62,7 @@ parse_answer(Json) ->
     fun%%
        (#{<<"message_id">> := _, 
           <<"registration_id">> := NewToken})        -> ?e({new_token, NewToken});
-       (#{<<"message_id">> := _})                    -> ok;
+       (#{<<"message_id">> := _})                    -> {ok, ?p};
        (#{<<"error">> := <<"Unavailable">>})         -> ?e(service_unavailable);   
        (#{<<"error">> := <<"InvalidRegistration">>}) -> ?e(invalid_registration);  %% Drop this error
        (#{<<"error">> := <<"NotRegistered">>})       -> ?e(not_registered);        %% Delete token

@@ -16,7 +16,7 @@
          terminate/2,
          code_change/3]).
 
--export([get_data/1, set_data/2]).
+-export([get_data/1, set_data/2, get_date/1]).
 -export([get_stat/1, set_stat/2, get_and_flush_stat/1]).
 
 -include("../include/epush4.hrl").
@@ -56,7 +56,7 @@ get_saved_data(Slot) ->
   init_data(Slot). %% While sove to disc not reliased
 %
 init_data(Slot) ->
-  {ok, #{slot => Slot, from => ?p, data => ?e(no_data), stat => orddict:new()}}.
+  {ok, #{slot => Slot, from => ?p, data => ?e(no_data), stat => orddict:new(), date => ?now}}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -84,6 +84,7 @@ handle_cast(Msg, S) ->
 %%calls
 handle_call({set, Data}, _F, S)         -> set_(S, Data);
 handle_call(get, _F, S)                 -> get_(S);
+handle_call(get_date, _F, S)             -> get_date_(S);
 handle_call({set_stat, AddStat}, _F, S) -> set_stat_(S, AddStat);
 handle_call(get_stat, _F, S)            -> get_stat_(S);
 handle_call(get_and_flush_stat, _F, S)  -> get_and_flush_stat_(S);
@@ -125,14 +126,23 @@ get_(S) ->
   end.
 
 
+get_date(Slot) ->
+  call(Slot, get_date, info).
+get_date_(S) ->
+  Date = maps:get(date, S, 0),
+  case S of 
+    #{timeout := Timeout} -> {reply, {ok, Date}, S, Timeout}; 
+    _                     -> {reply, {ok, Date}, S} 
+  end.
+
 
 
 set_data(Slot, Data) ->
   call(Slot, {set, Data}, force_start).
 set_(S, Data) ->
   case S of
-    #{timeout := Timeout} -> {reply, ok, S#{data := Data}, Timeout};
-    _                     -> {reply, ok, S#{data := Data}}
+    #{timeout := Timeout} -> {reply, ok, S#{data := Data, date := ?now}, Timeout};
+    _                     -> {reply, ok, S#{data := Data, date := ?now}}
   end.
 
 

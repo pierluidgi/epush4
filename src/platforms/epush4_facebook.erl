@@ -43,11 +43,11 @@ send_message(PostData, Options, Headers, Token) ->
   end.
 
 
-parse_answer(Status, Body) when Status == "200" -> 
-  ?INF("parse_answer Body", Body),
-  ok;
-parse_answer(Status, Body) ->
-  ?INF("parse_answer Status", Status),
+parse_answer(Status, _Body) when Status == "200" -> 
+  %?INF("parse_answer Body", Body),
+  {ok, ?p};
+parse_answer(_Status, Body) ->
+  %?INF("parse_answer Status", Status),
   case jsx:is_json(Body) of
     true ->
       case jsx:decode(Body, [return_maps]) of

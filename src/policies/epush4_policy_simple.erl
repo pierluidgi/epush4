@@ -117,6 +117,7 @@ manage_response(#{slot      := Slot,
   %?INF("Feedback", {M,F,A}),
   FeedbackFun = fun
     (Fu, [{_, ok}|Rs], Acc) -> Fu(Fu, Rs, orddict:update_counter(ok, 1, Acc));
+    (Fu, [{_, {ok, Desc}}|Rs], Acc) -> Fu(Fu, Rs, orddict:update_counter({ok, Desc}, 1, Acc));
     (Fu, [{T, R} |Rs], Acc) -> 
       %% TODO add platfrom and token src to feedback
       FeedbackArgs = #{platform => Platform,
