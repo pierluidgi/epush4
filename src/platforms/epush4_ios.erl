@@ -31,6 +31,12 @@ res_parse({ok, {Headers, Body}}) ->
     #{<<":status">> := <<"200">>} -> {ok, ?p};
     #{<<":status">> := <<"400">>,
       <<"reason">>  := <<"BadDeviceToken">>} -> ?e(not_registered);
+    %% 400 The apns-topic header of the request was not specified and was
+    %% required. The apns-topic header is mandatory when the client is connected
+    %% using a certificate that supports multiple topics.
+    %% ReasonMissingTopic = "MissingTopic"
+    %#{<<":status">> := <<"400">>,
+    %  <<"reason">>  := <<"MissingTopic">>} -> ?e(not_registered);
     #{<<":status">> := <<"410">>} -> ?e(not_registered);
     Else ->
       ?INF("IOS push error:", Else),
