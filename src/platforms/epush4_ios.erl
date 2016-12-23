@@ -19,6 +19,7 @@ push(Conn, Token, Payload) ->
     {<<":method">>, <<"POST">>}, 
     {<<":path">>,   <<"/3/device/", Token/binary>>}],
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
+  %?INF("IOS push send result:", {Res, Payload}),
   res_parse(Res).
 
 
@@ -28,6 +29,8 @@ res_parse({ok, {Headers, Body}}) ->
   HeadersMap = maps:from_list(Headers),
   case maps:merge(HeadersMap, BodyMap) of
     #{<<":status">> := <<"200">>} -> {ok, ?p};
+    #{<<":status">> := <<"400">>,
+      <<"reason">>  := <<"BadDeviceToken">>} -> ?e(not_registered);
     #{<<":status">> := <<"410">>} -> ?e(not_registered);
     Else ->
       ?INF("IOS push error:", Else),
