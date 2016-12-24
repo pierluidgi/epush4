@@ -12,7 +12,7 @@
 
 
 push(Conn, {#{<<"token">> := Token}, ApnsTopic}, Payload) ->
-  push(Conn, {Token, ApnsTopic}, Payload);
+  push(Conn, {Token, ApnsTopic}, Payload).
 %
 push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
