@@ -12,7 +12,7 @@
 
 
 push(Conn, {#{<<"token">> := Token}, ApnsTopic}, Payload) ->
-  push(Conn, {Token, ApnsTopic}, Payload).
+  push(Conn, {Token, ApnsTopic}, Payload);
 %
 push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
@@ -26,7 +26,7 @@ push(Conn, {Token, ApnsTopic}, Payload) ->
     {<<":path">>,      <<"/3/device/", Token/binary>>},
     {<<"apns-topic">>, ApnsTopic}],
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
-  res_parse(Res);
+  res_parse(Res).
 
 
 
