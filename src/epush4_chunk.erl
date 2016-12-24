@@ -53,7 +53,7 @@ init(PushTags) ->
   %?INF("slot data", {Slot, Platform, SlotData}),
   PlatformData = case SlotData of
     #{platforms := #{Platform := Value}} -> Value;
-    _ -> erlang:error(wrong_platform)
+    _ -> erlang:error({wrong_platform, Platform})
   end,
   
   Policy     = maps:get(policy, SlotData, <<"simple">>),

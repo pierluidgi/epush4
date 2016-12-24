@@ -51,10 +51,16 @@ parse_answer(_Status, Body) ->
   case jsx:is_json(Body) of
     true ->
       case jsx:decode(Body, [return_maps]) of
-        #{<<"code">> := 100} -> ?e(too_long_text);
-        #{<<"code">> := 200} -> ?e(not_registered);
-        Else                 -> ?e(unknown_response_error, Else)
+        #{<<"error">> := Error} -> parse_error(Error);
+        Else                    -> ?e(unknown_response_error, Else)
       end; 
     false -> ?e(unknown_response_error)
   end.
 
+parse_error(Error) ->
+  case Error of
+    #{<<"code">> := 100}         -> ?e(too_long_text);
+    #{<<"code">> := 200}         -> ?e(not_registered);
+    E = #{<<"fbtrace_id">> := _} -> ?e(unknown_response_error, E#{<<"fbtrace_id">> := <<"">>});
+    Else                         -> ?e(unknown_response_error, Else)
+  end.

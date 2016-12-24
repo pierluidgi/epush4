@@ -75,7 +75,7 @@ send(S = #{pool      := Pool,
                 TryPayload = 
                   try erlang:apply(M, F, [T, SlotData])
                   catch E:R -> 
-                    ?INF("Payload generate error", {E,R, {M, F, lists:append(A, [T])}}), 
+                    ?INF("Payload generate error", {E,R, {M, F, [A, T, SlotData]}}), 
                     ?e(gen_payload_error)
                   end,
                 case TryPayload of

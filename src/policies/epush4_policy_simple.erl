@@ -8,7 +8,7 @@
 % Send pushes by packs size in 100 pushes
 -define(SEND_PUSHES_NUM, 100). 
 % Max Time for send pack
--define(CONN_LEASE_TIME, 50000).
+-define(CONN_LEASE_TIME, 250000).
 
 
 %
@@ -20,9 +20,9 @@ timeout(S = #{state := free, tokens := Ts}) when is_list(Ts), Ts /= [] ->
   {noreply, S#{state := sent}, 500};
 %
 timeout(S = #{state := free, tokens := [], last_add := LA}) ->
-  case ?now - LA > 1000 of
-    true  -> {stop, normal, S};       %% stop idle and shutdown
-    false -> {noreply, S, 20*60*1000} %% Idle
+  case ?now - LA > 100 of
+    true  -> {stop, normal, S};    %% stop idle and shutdown
+    false -> {noreply, S, 20*1000} %% Idle
   end;
 %
 timeout(S = #{state := {conn_timeout, Until}}) ->
@@ -66,6 +66,7 @@ send(S = #{pool      := Pool,
            payload   := Payload,
            tokens    := Tokens}) ->
   
+  ?INF("Send", {Pool, self(), length(Tokens)}),
   case get_conn(Pool) of
     {ok, ConnPid} ->
       case get_key(ConnPid, Platform) of
@@ -87,7 +88,8 @@ send(S = #{pool      := Pool,
           {noreply, S#{state := free, tokens := []}, 0}
       end;
     timeout -> 
-      %% TODO SOMETHING
+      %% TODO SOMETHING 
+      ?INF("Get Conn timeout!", {self(), err_timeout(conn_timeout)}),
       {noreply, S#{state := free}, err_timeout(conn_timeout)};
     {err,{pool_not_found,_}} -> 
       %% TODO SOMETHING
@@ -100,8 +102,8 @@ do_send(<<"android">>,  C, T, P) -> epush4_android:push(C, T, P);
 do_send(<<"windows">>,  C, T, P) -> epush4_windows:push(C, T, P);
 do_send(<<"facebook">>, C, T, P) -> epush4_facebook:push(C, T, P).
 %
-err_timeout(conn_error)    -> ?now + 50000 + random_int(20000);
-err_timeout(conn_timeout)  -> ?now + 50000 + random_int(20000).
+err_timeout(conn_error)    -> 10000 + random_int(20000);
+err_timeout(conn_timeout)  -> 10000 + random_int(20000).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
