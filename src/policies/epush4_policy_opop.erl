@@ -66,6 +66,11 @@ send(S = #{pool      := Pool,
            pmfa      := {M,F,A},
            tokens    := Tokens}) ->
   
+  TokenFun =
+    fun(Token) ->
+      case Platform of <<"ios">> -> {Token, maps:get(apns_topic, S, u)}; _ -> Token end
+    end,
+
   case get_conn(Pool) of
     {ok, ConnPid} ->
       case get_key(ConnPid, Platform) of
@@ -80,7 +85,7 @@ send(S = #{pool      := Pool,
                   end,
                 case TryPayload of
                   {ok, Payload} ->
-                    case do_send(Platform, Conn, T, Payload) of
+                    case do_send(Platform, Conn, TokenFun(T), Payload) of
                       conn_error  -> {[T|Ts], [conn_error|Acc], err_timeout(conn_error)};
                       Res         -> Fu(Fu, Ts, N-1, [{T, Res}|Acc])
                     end;

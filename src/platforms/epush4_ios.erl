@@ -11,16 +11,22 @@
 -export([push/3]).
 
 
-
-push(Conn, #{<<"token">> := Token}, Payload) ->
-  push(Conn, Token, Payload);
-push(Conn, Token, Payload) ->
+push(Conn, {#{<<"token">> := Token}, ApnsTopic}, Payload) ->
+  push(Conn, {Token, ApnsTopic}, Payload);
+%
+push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
     {<<":method">>, <<"POST">>}, 
     {<<":path">>,   <<"/3/device/", Token/binary>>}],
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
-  %?INF("IOS push send result:", {Res, Payload}),
-  res_parse(Res).
+  res_parse(Res);
+push(Conn, {Token, ApnsTopic}, Payload) ->
+  RequestHeaders = [
+    {<<":method">>,    <<"POST">>}, 
+    {<<":path">>,      <<"/3/device/", Token/binary>>},
+    {<<"apns-topic">>, ApnsTopic}],
+  Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
+  res_parse(Res);
 
 
 
