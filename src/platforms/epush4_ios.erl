@@ -42,7 +42,6 @@ res_parse({ok, {Headers, Body}}) ->
     %% using a certificate that supports multiple topics.
     %% ReasonMissingTopic = "MissingTopic"
     %#{<<":status">> := <<"400">>,
-    %  <<"reason">>  := <<"MissingTopic">>} -> ?e(not_registered);
     #{<<":status">> := <<"410">>} -> ?e(not_registered);
     Else ->
       ?INF("IOS push error:", Else),
