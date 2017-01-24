@@ -114,7 +114,7 @@ call(Slot, Msg, Mode) ->
 
 get_data(Slot) ->
   call(Slot, get, info).
-get_(S = #{data := Data}) ->
+get_(S = #{data := Data}) when is_map(Data) ->
   case S of 
     #{timeout := Timeout} -> {reply, Data#{pid => self()}, S, Timeout}; 
     _                     -> {reply, Data#{pid => self()}, S} 
