@@ -71,6 +71,7 @@ init(PushTags) ->
       end
   end,
 
+  %?INF("Start chunk", {SlotData, PushTags}),
 
   case TryPayload of
     {ok, Payload} ->
@@ -84,7 +85,7 @@ init(PushTags) ->
         policy    => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
         state     => free,      %% if command send is sent
         platform  => Platform,
-        apns_topic=> maps:get(apns_topic, SlotData, u), %% For ios!
+        apns_topic=> maps:get(apns_topic, PlatformData, u), %% For ios!
         last_add  => ?now,
         until     => Now + Timeout,
         tokens    => [],
