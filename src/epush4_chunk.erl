@@ -70,6 +70,7 @@ init(PushTags) ->
       end
   end,
 
+  %?INF("Start chunk", {SlotData, PushTags}),
 
   case TryPayload of
     {ok, Payload} ->

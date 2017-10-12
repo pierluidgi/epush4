@@ -107,6 +107,8 @@ req_key(#{client_id := ClientID, client_key := ClientKey}) ->
       end,
       %?INF("req_key", Res),
       Res;
+    {error, req_timedout} -> 
+      ?e(timeout);
     Else ->
       ?e(get_access_fail, Else)
   end.
