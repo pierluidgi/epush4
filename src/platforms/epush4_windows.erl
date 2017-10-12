@@ -38,13 +38,15 @@ push(Key, Token, Payload) ->
     {"X-WNS-RequestForStatus", "true"}],
   
   try
-    case ibrowse:send_req(binary_to_list(Token), Headers, post, Payload, Options, 3000) of
+    Uri = binary_to_list(Token),
+    case ibrowse:send_req(Uri, Headers, post, Payload, Options, 4000) of
       {ok, "200", _RetHeaders, _BodyData} -> {ok, ?p};
       {ok, "401", _RetHeaders, _BodyData} -> ?e(wrong_key);
       {ok, "403", _RetHeaders, _BodyData} -> ?e(wrong_app_key);
+      {ok, "404", _RetHeaders, _BodyData} -> ?e(not_registered);
       {ok, "410", _RetHeaders, _BodyData} -> ?e(not_registered);
       {ok, Status, RetHeaders,  BodyData} ->
-          ?INF("Windows push error", {?p, {Status, RetHeaders, BodyData}}),
+          ?INF("Windows push error", {?p, {Status, Uri, RetHeaders, BodyData}}),
           ?e(unknown_response_error);
       Else ->
         ?INF("Windows push error", {?p, Else}),
