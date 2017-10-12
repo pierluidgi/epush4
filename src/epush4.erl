@@ -16,7 +16,8 @@ send(Tokens, PushTags) ->
 sync_send(Tokens, PushTags) ->
   Md5Fun = fun(Bin) -> base64:encode(crypto:hash(md5, Bin)) end,
   Key = Md5Fun(term_to_binary(PushTags)),
-  epush4_chunk:call(Key, {add, Tokens}, PushTags, force_start).
+  Timeout = 50000, %% For wait while chunk doing sending job
+  epush4_chunk:call(Key, {add, Tokens}, PushTags, force_start, Timeout).
 
 pool(Pool, PoolData) ->
   epush4_data:add_pool(Pool),
@@ -68,19 +69,13 @@ t_slot() ->
 %%
 t_send() ->
 
-  PushEnv = #{
-    token_vars => #{<<"lang">> => <<"en">>, <<"platform">> => <<"android">>},
-    push_vars  => [<<"Ivan">>, <<"Petrov">>],
-    slot       => <<"test">>},
-
-
+  PushTags = #{<<"lang">> => <<"en">>, <<"platform">> => <<"windows">>, <<"slot">> => <<"test">>},
   %% Token = #{<<"from">> => Id::binary(), Token => Token::binary()} | Token::binary()
 
   Tokens = [
-      <<"760c0d7661fdacc6fe3aa81bfd6c830f052267e087106c5fa70bbb27c42a6372">>,
-      <<"2ca4f81baaf048643f3443f8cd9c6f12c35a3fecad104e39e12258b4d80d5bf6">>
+      <<"https://db5.notify.windows.com/?token=AwYAAAAC71bFbTnCHE1tDM8tfqwn2VnX4mnqNT1bVrCDKccHA55KFRPDq7i7ODnGusQcInSoGNW4HKTdFPR7ZNb3ib9qxWu3MfCktFcJEWAzoRjOOXNBUUeCoegTqM16v%2bYK30o%3d">>
     ],
   
 
-  send(Tokens, PushEnv).
+  sync_send(Tokens, PushTags).
 

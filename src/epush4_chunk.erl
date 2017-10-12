@@ -17,7 +17,7 @@
          terminate/2,
          code_change/3]).
 
--export([call/4, cast/4, cast/5]).
+-export([call/4, call/5, cast/4, cast/5]).
 
 -export([state/1]).
 
@@ -29,16 +29,14 @@
 
 
 %
-start_link(#{start := true, args := Args = #{<<"slot">>     := Slot, 
-                                             <<"platform">> := Platform}}) ->
-  ?INF("start_link", {Slot, Platform}),
+start_link(#{start := true, args := Args}) -> 
   gen_server:start_link(?MODULE, Args, []);
 %
 start_link(#{start := false}) ->
   not_started;
 %
-start_link(_) ->
-  {err, {wrong_args, <<"wrong_args">>}}.
+start_link(Args) ->
+  {err, {wrong_args, ?p(Args)}}.
 
 
 
@@ -50,10 +48,11 @@ init(PushTags) ->
   
 
   SlotData    = epush4_slot:get_data(Slot),
-  %?INF("slot data", {Slot, Platform, SlotData}),
   PlatformData = case SlotData of
     #{platforms := #{Platform := Value}} -> Value;
-    _ -> erlang:error({wrong_platform, Platform})
+    _ -> 
+      ?INF("init err", {Slot, SlotData, Platform}),
+      erlang:error({wrong_platform, Platform})
   end,
   
   Policy     = maps:get(policy, SlotData, <<"simple">>),
@@ -79,12 +78,13 @@ init(PushTags) ->
       S = #{
         slot      => Slot,
         slot_data => SlotData,
+        tags      => PushTags,
         token_src => maps:get(<<"token_src">>, SlotData, <<"db">>),
         pool      => Pool,
         policy    => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
         state     => free,      %% if command send is sent
         platform  => Platform,
-        apns_topic=> maps:get(apns_topic, SlotData, u), %% For ios!
+        apns_topic=> maps:get(apns_topic, PlatformData, u), %% For ios!
         last_add  => ?now,
         until     => Now + Timeout,
         tokens    => [],
@@ -97,7 +97,8 @@ init(PushTags) ->
       %% link to slot
       %process_flag(trap_exit, true),
       %link(maps:get(pid, SlotData)),
-      {ok, S, Timeout};
+      %?INF("Start chunk", #{slot => Slot, tags => PushTags, self => self(), timeout => Timeout}),
+      {ok, S, Timeout * 1000};
     Else ->
       {stop, Else}
   end.
@@ -147,6 +148,9 @@ handle_call(Req, _From, S)        -> {reply, {err, unknown_command, ?p(Req)}, S,
 call(Key, Msg, Args, Mode) ->
   ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args)).
 %
+call(Key, Msg, Args, Mode, Timeout) ->
+  ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args), Timeout).
+%
 cast(Key, Msg, Args, Mode) ->
   spawn(fun() -> ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args)) end).
 %
@@ -170,6 +174,8 @@ random_int(1) -> 1;
 random_int(N) -> rand:uniform(N).
 
 log_(_S = #{log := Log}) -> Log.
+state(Pid) when is_pid(Pid) ->
+  gen_server:call(Pid, state);
 state(Key) ->
   ecld:call(?CHUNK_CLUSTER, Key, state, ?OPT(info, empty_args)).
 state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
@@ -187,8 +193,14 @@ state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
 % simple - default policy with deduplications
 % opop - one_push_one_payload
 %
-add_(S = #{policy := <<"simple">>},Msg) -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
-add_(S = #{policy := <<"opop">>},  Msg) -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
+add_(S, Msg) -> 
+  NewS = #{tokens := NewTokens} = 
+    case S of
+      #{policy := <<"simple">>} -> epush4_policy_simple:add(S, Msg);
+      #{policy := <<"opop">>}   -> epush4_policy_opop:add(S, Msg)
+    end,
+  
+  {reply, {ok, length(NewTokens)}, NewS, 500}.
 
 
 %
