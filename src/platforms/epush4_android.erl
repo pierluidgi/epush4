@@ -18,14 +18,14 @@
 %% 
 -define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
 %-define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
--define(SEND_TIMEOUT, 5000).
+-define(SEND_TIMEOUT, 4000).
 
 
 -define(IBROWSE_OPTIONS(ContentType), [  % Ibrowse options ContentType = "text/html"
           {max_sessions, 1000},
           {max_pipeline_size, 500},
           {connect_timeout, 2000},
-          {inactivity_timeout, 4000},
+          {inactivity_timeout, 3000},
           {content_type, ContentType}]).
 
 
@@ -49,7 +49,8 @@ send_message(Options, Headers, Token, AndroidMsg) ->
     {ok, "200", _RetHeaders, BodyData} ->
       parse_answer(list_to_binary(BodyData));
     {ok, "401", _RetHeaders, _BodyData} -> ?e(invalid_key);
-    {error,req_timedout} -> ?e(timeout);
+    {error, req_timedout} -> ?e(timeout);
+    {error, {conn_failed,error}} -> ?e(conn_failed);
     Else                 -> ?INF("Error google response!", {Token, Else, AndroidMsg}), ?e(unknown)
   end.
 
