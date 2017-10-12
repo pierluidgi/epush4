@@ -8,7 +8,7 @@
 
 -export([timeout/1, add/2, send/1]).
 
-
+-define(CHUNK_TTL, 1000). %% Sec
 
 %
 timeout(S = #{state := sent}) ->
@@ -19,7 +19,7 @@ timeout(S = #{state := free, tokens := Ts}) when is_list(Ts), Ts /= [] ->
   {noreply, S#{state := sent}, 500};
 %
 timeout(S = #{state := free, tokens := [], last_add := LA}) ->
-  case ?now - LA > 1000 of
+  case ?now - LA > ?CHUNK_TTL of      %% LA in seconds
     true  -> {stop, normal, S};       %% stop idle and shutdown
     false -> {noreply, S, 20*60*1000} %% Idle
   end;
@@ -38,8 +38,7 @@ timeout(S = #{state := {conn_timeout, Until}}) ->
 
 
 
-add(S = #{tokens := OldTokens, state := State}, Tokens) ->
-  %?INF("Add", length(Tokens)),
+add(S = #{slot := _Slot, platform := _Platform, tokens := OldTokens, state := State}, Tokens) ->
   case State of
     sent  ->
       S#{tokens := lists:append(OldTokens, Tokens), last_add := ?now};
