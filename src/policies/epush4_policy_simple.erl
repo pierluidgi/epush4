@@ -72,7 +72,7 @@ send(S = #{pool      := Pool,
     end,
 
 
-  ?INF("Send", {Pool, self(), length(Tokens)}),
+  %?INF("Send", {Pool, self(), length(Tokens)}),
   case get_conn(Pool) of
     {ok, ConnPid} ->
       case get_key(ConnPid, Platform) of
