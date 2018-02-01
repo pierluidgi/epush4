@@ -1,4 +1,10 @@
--module(epush4_policy_simple).
+%%
+%% Send pushes by time according players time zone
+%%
+%%
+
+
+-module(epush4_policy_simple_tz).
 
 -include("../../include/epush4.hrl").
 
@@ -11,24 +17,37 @@
 -define(CONN_LEASE_TIME, 250000).
 
 
-%
+%% 
 timeout(S = #{state := sent}) ->
   {stop, send_not_sent, S};
-%
-timeout(S = #{state := free, tokens := Ts}) when is_list(Ts), Ts /= [] ->
-  gen_server:cast(self(), send),
-  {noreply, S#{state := sent}, 500};
+
+%% Check datatime
+timeout(S = #{state := free, tokens := Ts, slot_data := SD, push_tags := PT}) when is_list(Ts), Ts /= [] ->
+  PD = maps:get(push_data, SD),
+  SendTime = maps:get(<<"send_time">>, PD),
+  TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+  Now = ?now,
+  DeltaTZ = TimeZone * 60*60,
+  %?INF("timeout TZ", {{SendTime, Now, DeltaTZ}, SendTime =< (Now + DeltaTZ), PD}),
+  case SendTime =< (Now + DeltaTZ) of
+    true ->
+      %?INF("push_tags and slot_data", {PT, SD}),
+      gen_server:cast(self(), send),
+      {noreply, S#{state := sent}, 500};
+    false ->
+      {noreply, S, (12 + rand:uniform(6)) * 60 * 1000} %% Idle 12-18 min
+  end;
 %
 timeout(S = #{state := free, tokens := [], last_add := LA}) ->
-  case ?now - LA > 100 of
-    true  -> {stop, normal, S};    %% stop idle and shutdown
-    false -> {noreply, S, 20*1000} %% Idle
+  case ?now - LA > 1200 of
+    true  -> {stop, normal, S};          %% stop idle and shutdown
+    false -> {noreply, S, 5 * 60 * 1000} %% Idle
   end;
 %
 timeout(S = #{state := {conn_timeout, Until}}) ->
   Now = ?now,
   {NewS, Timeout} = case Now >= Until of
-    true -> 
+    true ->
       gen_server:cast(self(), send),
       {S#{state := sent}, 500};
     false ->
@@ -39,14 +58,24 @@ timeout(S = #{state := {conn_timeout, Until}}) ->
 
 
 
-add(S = #{tokens := OldTokens, state := State}, Tokens) ->
-  %?INF("Add", length(Tokens)),
+add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}, Tokens) ->
   case State of
     sent  ->
       S#{tokens := lists:append(OldTokens, Tokens), last_add := ?now};
     free ->
-      gen_server:cast(self(), send),
-      S#{tokens := lists:append(OldTokens, Tokens), state := sent, last_add := ?now};
+      PD = maps:get(push_data, SD),
+      SendTime = maps:get(<<"send_time">>, PD),
+      TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+      ?INF("Add simple TZ", {length(Tokens), TimeZone, PT}),
+      Now = ?now,
+      DeltaTZ = TimeZone * 60 * 60,
+      case SendTime =< Now + DeltaTZ of
+        true ->
+          gen_server:cast(self(), send),
+          S#{tokens := lists:append(OldTokens, Tokens), state := sent, last_add := Now};
+        false ->
+          S#{tokens := lists:append(OldTokens, Tokens), state := free, last_add := Now}
+      end;
     {conn_timeout, Until} ->
       Now = ?now,
       case Now > Until of
@@ -71,13 +100,11 @@ send(S = #{pool      := Pool,
       case Platform of <<"ios">> -> {Token, maps:get(apns_topic, S, u)}; _ -> Token end
     end,
 
-
-  %?INF("Send", {Pool, self(), length(Tokens)}),
   case get_conn(Pool) of
     {ok, ConnPid} ->
       case get_key(ConnPid, Platform) of
         {ok, Conn} ->
-          %?INF("Send to conn", {Platform, Conn}),
+          %?INF("Send to conn", {Platform, Conn, Payload}),
           SendFun = fun
             (Fu, [T|Ts], N, Acc) when N > 0 ->
                 case do_send(Platform, Conn, TokenFun(T), Payload) of
@@ -108,8 +135,7 @@ send(S = #{pool      := Pool,
 do_send(<<"ios">>,      C, T, P) -> epush4_ios:push(C, T, P);
 do_send(<<"android">>,  C, T, P) -> epush4_android:push(C, T, P);
 do_send(<<"windows">>,  C, T, P) -> epush4_windows:push(C, T, P);
-do_send(<<"facebook">>, C, T, P) -> epush4_facebook:push(C, T, P);
-do_send(<<"flash">>,    C, T, P) -> epush4_facebook:push(C, T, P).
+do_send(<<"facebook">>, C, T, P) -> epush4_facebook:push(C, T, P).
 %
 err_timeout(conn_error)    -> 10000 + random_int(20000);
 err_timeout(conn_timeout)  -> 10000 + random_int(20000).
@@ -169,7 +195,6 @@ get_key(ConnPid, Platform) ->
     <<"ios">>       -> {ok, ConnPid};
     <<"windows">>   -> gen_server:call(ConnPid, get_key);
     <<"facebook">>  -> gen_server:call(ConnPid, get_key);
-    <<"flash">>     -> gen_server:call(ConnPid, get_key);
     <<"android">>   -> gen_server:call(ConnPid, get_key);
     _               -> ?e(wrong_platfrom)
   end.

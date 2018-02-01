@@ -29,9 +29,8 @@
 
 
 %
-start_link(#{start := true, args := Args = #{<<"slot">>     := Slot, 
-                                             <<"platform">> := Platform}}) ->
-  ?INF("start_link", {Slot, Platform}),
+start_link(#{start := true, args := Args = #{<<"slot">>     := _Slot, 
+                                             <<"platform">> := _Platform}}) ->
   gen_server:start_link(?MODULE, Args, []);
 %
 start_link(#{start := false}) ->
@@ -50,13 +49,14 @@ init(PushTags) ->
   
 
   SlotData    = epush4_slot:get_data(Slot),
-  %?INF("slot data", {Slot, Platform, SlotData}),
   PlatformData = case SlotData of
     #{platforms := #{Platform := Value}} -> Value;
-    _ -> erlang:error({wrong_platform, Platform})
+    _ -> erlang:error({no_such_platform_in_slot, {Platform, Slot}})
   end,
   
-  Policy     = maps:get(policy, SlotData, <<"simple">>),
+  PushData   = maps:get(push_data, SlotData, #{}),
+  Policy     = maps:get(<<"policy">>, PushData, <<"simple">>),
+  ?INF("PushData", PushData),
   Pool       = maps:get(pool_name, PlatformData),
   Feedback   = maps:get(feedback_mfa, PlatformData, u),
   PayloadMFA = maps:get(payload_mfa, PlatformData, u),
@@ -71,8 +71,6 @@ init(PushTags) ->
       end
   end,
 
-  %?INF("Start chunk", {SlotData, PushTags}),
-
   case TryPayload of
     {ok, Payload} ->
       Now        = ?now, 
@@ -80,6 +78,7 @@ init(PushTags) ->
       S = #{
         slot      => Slot,
         slot_data => SlotData,
+        push_tags => PushTags,
         token_src => maps:get(<<"token_src">>, SlotData, <<"db">>),
         pool      => Pool,
         policy    => Policy,    %% send policy for example  #{tz := 4, try_num := 3, send_rate := exponent};
@@ -186,20 +185,24 @@ state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
 %% Progress = map() #{tries := 1, last_try := Time}
 %
 % simple - default policy with deduplications
+% simple_tz - policy with deduplications and delayed send
 % opop - one_push_one_payload
 %
-add_(S = #{policy := <<"simple">>},Msg) -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
-add_(S = #{policy := <<"opop">>},  Msg) -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
+add_(S = #{policy := <<"simple">>},Msg)    -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
+add_(S = #{policy := <<"simple_tz">>},Msg) -> {reply,ok,epush4_policy_simple_tz:add(S, Msg),500};
+add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
 
 
 %
-send_(S = #{policy := <<"simple">>}) -> epush4_policy_simple:send(S);
-send_(S = #{policy := <<"opop">>})   -> epush4_policy_opop:send(S).
+send_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:send(S);
+send_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:send(S);
+send_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:send(S).
 
 
 %
-timeout_(S = #{policy := <<"simple">>}) -> epush4_policy_simple:timeout(S);
-timeout_(S = #{policy := <<"opop">>})   -> epush4_policy_opop:timeout(S).
+timeout_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:timeout(S);
+timeout_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:timeout(S);
+timeout_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:timeout(S).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

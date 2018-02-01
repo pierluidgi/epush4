@@ -34,12 +34,19 @@ push(Key, Token, Payload) ->
 
 
 %
+send_message(PostData, Options, Headers, #{<<"nid">> := Token, <<"nw">> := <<"facebook">>}) ->
+  Url = lists:append([?FACEBOOK_BASEURL, binary_to_list(Token), "/notifications"]),
+  case ibrowse:send_req(Url, Headers, post, PostData, Options, ?FACEBOOK_IBROWSE_SEND_TIMEOUT) of
+    {ok, Status, _RHeaders, Body} -> parse_answer(Status, list_to_binary(Body));
+    {error,req_timedout}          -> ?e(timeout);
+    Else                          -> ?INF("AAAA", {Url, Else}), ?e(unknown_response_error, Else)
+  end;
 send_message(PostData, Options, Headers, Token) ->
   Url = lists:append([?FACEBOOK_BASEURL, binary_to_list(Token), "/notifications"]),
   case ibrowse:send_req(Url, Headers, post, PostData, Options, ?FACEBOOK_IBROWSE_SEND_TIMEOUT) of
     {ok, Status, _RHeaders, Body} -> parse_answer(Status, list_to_binary(Body));
     {error,req_timedout}          -> ?e(timeout);
-    Else                          -> ?e(unknown_response_error, Else)
+    Else                          -> ?INF("BBBB", {Url, Else}), ?e(unknown_response_error, Else)
   end.
 
 
@@ -61,6 +68,7 @@ parse_error(Error) ->
   case Error of
     #{<<"code">> := 100}         -> ?e(too_long_text);
     #{<<"code">> := 200}         -> ?e(not_registered);
+    #{<<"code">> := 803}         -> ?e(not_registered, 803);
     E = #{<<"fbtrace_id">> := _} -> ?e(unknown_response_error, E#{<<"fbtrace_id">> := <<"">>});
     Else                         -> ?e(unknown_response_error, Else)
   end.

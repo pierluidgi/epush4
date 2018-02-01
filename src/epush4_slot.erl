@@ -32,7 +32,7 @@ start_link(_Args = #{start := true, init := Init, args := Args}) ->
       case Init of
         true ->
           %% Init profile
-          case init_data(Slot) of
+          case init_data(Slot, Args) of
             {ok, Data} -> gen_server:start_link(?MODULE, [Slot, Data], []);
             Else          -> Else
           end;
@@ -52,11 +52,18 @@ stop(Slot) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get datas
-get_saved_data(Slot) -> 
-  init_data(Slot). %% While sove to disc not reliased
+get_saved_data(_Slot) -> 
+  not_exists.
 %
-init_data(Slot) ->
-  {ok, #{slot => Slot, from => ?p, data => ?e(no_data), stat => orddict:new(), date => ?now}}.
+init_data(Slot, SlotArgs) ->
+  SlotData = #{
+    slot => Slot, 
+    from => ?p, 
+    data => SlotArgs, 
+    stat => orddict:new(), 
+    policy => maps:get(<<"policy">>, SlotArgs, <<"simple">>),
+    date => ?now},
+  {ok, SlotData}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -138,7 +145,7 @@ get_date_(S) ->
 
 
 set_data(Slot, Data) ->
-  call(Slot, {set, Data}, force_start).
+  call(Slot, {set, Data}, force_create).
 set_(S, Data) ->
   case S of
     #{timeout := Timeout} -> {reply, ok, S#{data := Data, date := ?now}, Timeout};

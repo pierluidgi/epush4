@@ -3,7 +3,7 @@
 %%
 
 %% DOCS
-%%
+%% https://msdn.microsoft.com/library/windows/apps/hh465435
 %%
 
 -module(epush4_windows).
@@ -39,13 +39,14 @@ push(Key, Token, Payload) ->
   
   try
     case ibrowse:send_req(binary_to_list(Token), Headers, post, Payload, Options, 3000) of
-      {ok, "200", _RetHeaders, _BodyData} -> {ok, ?p};
-      {ok, "401", _RetHeaders, _BodyData} -> ?e(wrong_key);
-      {ok, "403", _RetHeaders, _BodyData} -> ?e(wrong_app_key);
-      {ok, "410", _RetHeaders, _BodyData} -> ?e(not_registered);
-      {ok, Status, RetHeaders,  BodyData} ->
-          ?INF("Windows push error", {?p, {Status, RetHeaders, BodyData}}),
-          ?e(unknown_response_error);
+      {ok, "200",  _RetHeaders, _BodyData} -> {ok, ?p};
+      {ok, "401",  _RetHeaders, _BodyData} -> ?e(wrong_key);
+      {ok, "403",  _RetHeaders, _BodyData} -> ?e(wrong_app_key);
+      {ok, "404",  _RetHeaders, _BodyData} -> ?e(not_registered);
+      {ok, "410",  _RetHeaders, _BodyData} -> ?e(not_registered);
+      {ok, Status, _RetHeaders, _BodyData} ->
+          %?INF("Windows push error", {?p, {Status, RetHeaders, BodyData}}),
+          ?e(unknown_response_error, Status);
       Else ->
         ?INF("Windows push error", {?p, Else}),
         ?e(unknown_response_error)
