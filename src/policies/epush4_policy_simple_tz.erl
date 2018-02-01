@@ -66,7 +66,7 @@ add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}
       PD = maps:get(push_data, SD),
       SendTime = maps:get(<<"send_time">>, PD),
       TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
-      ?INF("Add simple TZ", {length(Tokens), TimeZone, PT}),
+      %?INF("Add simple TZ", {length(Tokens), TimeZone, PT}),
       Now = ?now,
       DeltaTZ = TimeZone * 60 * 60,
       case SendTime =< Now + DeltaTZ of
