@@ -18,7 +18,7 @@ push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
     {<<":method">>, <<"POST">>}, 
     {<<":path">>,   <<"/3/device/", Token/binary>>}],
-  ?INF("IOS push without apns:", RequestHeaders),
+  %?INF("IOS push without apns:", RequestHeaders),
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
   res_parse(Res);
 push(Conn, {Token, ApnsTopic}, Payload) ->

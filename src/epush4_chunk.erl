@@ -17,7 +17,7 @@
          terminate/2,
          code_change/3]).
 
--export([call/4, cast/4, cast/5]).
+-export([call/4, call/5, cast/4, cast/5]).
 
 -export([state/1]).
 
@@ -36,8 +36,8 @@ start_link(#{start := true, args := Args = #{<<"slot">>     := _Slot,
 start_link(#{start := false}) ->
   not_started;
 %
-start_link(_) ->
-  {err, {wrong_args, <<"wrong_args">>}}.
+start_link(Args) ->
+  {err, {wrong_args, ?p(Args)}}.
 
 
 
@@ -56,7 +56,6 @@ init(PushTags) ->
   
   PushData   = maps:get(push_data, SlotData, #{}),
   Policy     = maps:get(<<"policy">>, PushData, <<"simple">>),
-  ?INF("PushData", PushData),
   Pool       = maps:get(pool_name, PlatformData),
   Feedback   = maps:get(feedback_mfa, PlatformData, u),
   PayloadMFA = maps:get(payload_mfa, PlatformData, u),
@@ -97,7 +96,8 @@ init(PushTags) ->
       %% link to slot
       %process_flag(trap_exit, true),
       %link(maps:get(pid, SlotData)),
-      {ok, S, Timeout};
+      %?INF("Start chunk", #{slot => Slot, tags => PushTags, self => self(), timeout => Timeout}),
+      {ok, S, Timeout * 1000};
     Else ->
       {stop, Else}
   end.
@@ -147,6 +147,9 @@ handle_call(Req, _From, S)        -> {reply, {err, unknown_command, ?p(Req)}, S,
 call(Key, Msg, Args, Mode) ->
   ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args)).
 %
+call(Key, Msg, Args, Mode, Timeout) ->
+  ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args), Timeout).
+%
 cast(Key, Msg, Args, Mode) ->
   spawn(fun() -> ecld:call(?CHUNK_CLUSTER, Key, Msg, ?OPT(Mode, Args)) end).
 %
@@ -170,6 +173,8 @@ random_int(1) -> 1;
 random_int(N) -> rand:uniform(N).
 
 log_(_S = #{log := Log}) -> Log.
+state(Pid) when is_pid(Pid) ->
+  gen_server:call(Pid, state);
 state(Key) ->
   ecld:call(?CHUNK_CLUSTER, Key, state, ?OPT(info, empty_args)).
 state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
