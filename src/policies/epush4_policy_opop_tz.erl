@@ -2,7 +2,7 @@
 %% one_push_one_payload policy with generate payload on each send
 %%
 
--module(epush4_policy_opop).
+-module(epush4_policy_opop_tz).
 
 -include("../../include/epush4.hrl").
 
@@ -14,9 +14,21 @@
 timeout(S = #{state := sent}) ->
   {stop, send_not_sent, S};
 %
-timeout(S = #{state := free, tokens := Ts}) when is_list(Ts), Ts /= [] ->
-  gen_server:cast(self(), send),
-  {noreply, S#{state := sent}, 500};
+timeout(S = #{state := free, tokens := [_|_], slot_data := SD, push_tags := PT}) ->
+  PD = maps:get(push_data, SD),
+  SendTime = maps:get(<<"send_time">>, PD),
+  TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+  Now = ?now,
+  DeltaTZ = TimeZone * 60*60,
+  %?INF("timeout TZ", {{SendTime, Now, DeltaTZ}, SendTime =< (Now + DeltaTZ), PD}),
+  case SendTime =< (Now + DeltaTZ) of
+    true ->
+      %?INF("push_tags and slot_data", {PT, SD}),
+      gen_server:cast(self(), send),
+      {noreply, S#{state := sent}, 500};
+    false ->
+      {noreply, S, (12 + rand:uniform(6)) * 60 * 1000} %% Idle 12-18 min
+  end;
 %
 timeout(S = #{state := free, tokens := [], last_add := LA}) ->
   case ?now - LA > ?CHUNK_TTL of      %% LA in seconds
@@ -38,13 +50,25 @@ timeout(S = #{state := {conn_timeout, Until}}) ->
 
 
 
-add(S = #{slot := _Slot, platform := _Platform, tokens := OldTokens, state := State}, Tokens) ->
+add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}, Tokens) ->
+
   case State of
     sent  ->
       S#{tokens := lists:append(OldTokens, Tokens), last_add := ?now};
     free ->
-      gen_server:cast(self(), send),
-      S#{tokens := lists:append(OldTokens, Tokens), state := sent, last_add := ?now};
+      PD = maps:get(push_data, SD),
+      SendTime = maps:get(<<"send_time">>, PD),
+      TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+      %?INF("Add opop TZ", {length(Tokens), TimeZone, PT}),
+      Now = ?now,
+      DeltaTZ = TimeZone * 60 * 60,
+      case SendTime =< Now + DeltaTZ of
+        true ->
+          gen_server:cast(self(), send),
+          S#{tokens := lists:append(OldTokens, Tokens), state := sent, last_add := Now};
+        false ->
+          S#{tokens := lists:append(OldTokens, Tokens), state := free, last_add := Now}
+      end;
     {conn_timeout, Until} ->
       Now = ?now,
       case Now > Until of

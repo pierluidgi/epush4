@@ -46,8 +46,7 @@ push(Key, Token, Payload) ->
 %
 send_message(Options, Headers, Token, AndroidMsg) ->
   case ibrowse:send_req(?URL, Headers, post, AndroidMsg, Options, ?SEND_TIMEOUT) of
-    {ok, "200", _RetHeaders, BodyData} ->
-      parse_answer(list_to_binary(BodyData));
+    {ok, "200", _RetHeaders, BodyData}  -> parse_answer(list_to_binary(BodyData));
     {ok, "401", _RetHeaders, _BodyData} -> ?e(invalid_key);
     {error, req_timedout} -> ?e(timeout);
     {error, {conn_failed,error}} -> ?e(conn_failed);
@@ -62,10 +61,10 @@ parse_answer(Json) ->
   ErrFun =
     fun%%
        (#{<<"message_id">> := _, 
-          <<"registration_id">> := NewToken})        -> ?e({new_token, NewToken});
+          <<"registration_id">> := NewToken})        -> ?INF("NT", NewToken), ?e({new_token, NewToken});
        (#{<<"message_id">> := _})                    -> {ok, ?p};
        (#{<<"error">> := <<"Unavailable">>})         -> ?e(service_unavailable);   
-       (#{<<"error">> := <<"InvalidRegistration">>}) -> ?e(invalid_registration);  %% Drop this error
+       (#{<<"error">> := <<"InvalidRegistration">>}) -> ?e(not_registered);        %% Delete token
        (#{<<"error">> := <<"NotRegistered">>})       -> ?e(not_registered);        %% Delete token
        (#{<<"error">> := <<"MismatchSenderId">>})    -> ?e(wrong_app_key);         %% Drop this error
        (Else)                                        -> ?e(unknown_response_error, Else) %% Drop unknown error

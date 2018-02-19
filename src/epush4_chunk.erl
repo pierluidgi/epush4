@@ -53,14 +53,17 @@ init(PushTags) ->
     #{platforms := #{Platform := Value}} -> Value;
     _ -> erlang:error({no_such_platform_in_slot, {Platform, Slot}})
   end,
+
   
-  PushData   = maps:get(push_data, SlotData, #{}),
-  Policy     = maps:get(<<"policy">>, PushData, <<"simple">>),
+  %PushData   = maps:get(push_data, SlotData, #{}),
+  %?INF("BBBBB", SlotData),
+  Policy     = maps:get(policy, SlotData, <<"simple">>),
   Pool       = maps:get(pool_name, PlatformData),
   Feedback   = maps:get(feedback_mfa, PlatformData, u),
   PayloadMFA = maps:get(payload_mfa, PlatformData, u),
   TryPayload = case Policy of
-    <<"opop">> -> {ok, <<"opop">>};
+    <<"opop">>    -> {ok, <<"opop">>};
+    <<"opop_tz">> -> {ok, <<"opop">>};
     _ ->
       {PM, PF, PA} = PayloadMFA,
       try erlang:apply(PM, PF, lists:append(PA, [PushTags, SlotData]))
@@ -192,22 +195,26 @@ state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
 % simple - default policy with deduplications
 % simple_tz - policy with deduplications and delayed send
 % opop - one_push_one_payload
+% opop_tz - one_push_one_payload with delayed send
 %
 add_(S = #{policy := <<"simple">>},Msg)    -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
 add_(S = #{policy := <<"simple_tz">>},Msg) -> {reply,ok,epush4_policy_simple_tz:add(S, Msg),500};
 add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
+add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop_tz:add(S, Msg),500}.
 
 
 %
 send_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:send(S);
 send_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:send(S);
 send_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:send(S).
+send_(S = #{policy := <<"opop_tz">>})   -> epush4_policy_opop_tz:send(S).
 
 
 %
 timeout_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:timeout(S);
 timeout_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:timeout(S);
 timeout_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:timeout(S).
+timeout_(S = #{policy := <<"opop_tz">>})   -> epush4_policy_opop_tz:timeout(S).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
