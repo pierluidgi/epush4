@@ -1,28 +1,20 @@
 %%
-%% Send pushes by time according players time zone
-%%
+%% one_push_one_payload policy with generate payload on each send
 %%
 
-
--module(epush4_policy_simple_tz).
+-module(epush4_policy_opop_tz).
 
 -include("../../include/epush4.hrl").
 
 -export([timeout/1, add/2, send/1]).
 
+-define(CHUNK_TTL, 1000). %% Sec
 
-% Send pushes by packs size in 100 pushes
--define(SEND_PUSHES_NUM, 100). 
-% Max Time for send pack
--define(CONN_LEASE_TIME, 250000).
-
-
-%% 
+%
 timeout(S = #{state := sent}) ->
   {stop, send_not_sent, S};
-
-%% Check datatime
-timeout(S = #{state := free, tokens := Ts, slot_data := SD, push_tags := PT}) when is_list(Ts), Ts /= [] ->
+%
+timeout(S = #{state := free, tokens := [_|_], slot_data := SD, push_tags := PT}) ->
   PD = maps:get(push_data, SD),
   SendTime = maps:get(<<"send_time">>, PD),
   TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
@@ -39,15 +31,15 @@ timeout(S = #{state := free, tokens := Ts, slot_data := SD, push_tags := PT}) wh
   end;
 %
 timeout(S = #{state := free, tokens := [], last_add := LA}) ->
-  case ?now - LA > 1200 of
-    true  -> {stop, normal, S};          %% stop idle and shutdown
-    false -> {noreply, S, 5 * 60 * 1000} %% Idle
+  case ?now - LA > ?CHUNK_TTL of      %% LA in seconds
+    true  -> {stop, normal, S};       %% stop idle and shutdown
+    false -> {noreply, S, 20*60*1000} %% Idle
   end;
 %
 timeout(S = #{state := {conn_timeout, Until}}) ->
   Now = ?now,
   {NewS, Timeout} = case Now >= Until of
-    true ->
+    true -> 
       gen_server:cast(self(), send),
       {S#{state := sent}, 500};
     false ->
@@ -59,18 +51,15 @@ timeout(S = #{state := {conn_timeout, Until}}) ->
 
 
 add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}, Tokens) ->
+
   case State of
     sent  ->
       S#{tokens := lists:append(OldTokens, Tokens), last_add := ?now};
     free ->
       PD = maps:get(push_data, SD),
       SendTime = maps:get(<<"send_time">>, PD),
-      TimeZone = 
-        case maps:get(<<"tz">>, PT, -5) of %% NY time zone by default
-          V when is_integer(V) -> V;
-          _ -> ?INF("wrong_tz", PT), -5
-        end,
-      %?INF("Add simple TZ", {length(Tokens), TimeZone, PT}),
+      TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+      %?INF("Add opop TZ", {length(Tokens), TimeZone, PT}),
       Now = ?now,
       DeltaTZ = TimeZone * 60 * 60,
       case SendTime =< Now + DeltaTZ of
@@ -96,10 +85,11 @@ add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}
 %% DO SEND
 send(S = #{pool      := Pool, 
            platform  := Platform,
-           payload   := Payload,
+           slot_data := SlotData,
+           pmfa      := {M,F,A},
            tokens    := Tokens}) ->
   
-  TokenFun = 
+  TokenFun =
     fun(Token) ->
       case Platform of <<"ios">> -> {Token, maps:get(apns_topic, S, u)}; _ -> Token end
     end,
@@ -108,41 +98,51 @@ send(S = #{pool      := Pool,
     {ok, ConnPid} ->
       case get_key(ConnPid, Platform) of
         {ok, Conn} ->
-          %?INF("Send to conn", {Platform, Conn, Payload}),
           SendFun = fun
             (Fu, [T|Ts], N, Acc) when N > 0 ->
-                case do_send(Platform, Conn, TokenFun(T), Payload) of
-                  conn_error  -> {[T|Ts], [conn_error|Acc], err_timeout(conn_error)};
-                  Res         -> Fu(Fu, Ts, N-1, [{T, Res}|Acc])
+                TryPayload = 
+                  try erlang:apply(M, F, [T, SlotData])
+                  catch E:R -> 
+                    ?INF("Payload generate error", {E,R, {M, F, [A, T, SlotData]}}), 
+                    ?e(gen_payload_error)
+                  end,
+                case TryPayload of
+                  {ok, Payload} ->
+                    case do_send(Platform, Conn, TokenFun(T), Payload) of
+                      conn_error  -> {[T|Ts], [conn_error|Acc], err_timeout(conn_error)};
+                      Res         -> Fu(Fu, Ts, N-1, [{T, Res}|Acc])
+                    end;
+                  Else -> Fu(Fu, Ts, N-1, [{T, Else}|Acc])
                 end;
             (_F, Ts, N, Acc) when Ts == []; N =< 0 -> {Ts, Acc, 0}
           end,
-          {NewTokens, ResultAcc, Timeout} = SendFun(SendFun, Tokens, ?SEND_PUSHES_NUM, []),
+          {NewTokens, ResultAcc, Timeout} = SendFun(SendFun, Tokens, 1000, []),
           ret_conn(Pool, ConnPid),
           manage_response(S, ResultAcc),
           {noreply, S#{state := free, tokens := NewTokens}, Timeout};
-        Else -> 
+        Else ->
           ?INF("Error", Else),
           {noreply, S#{state := free, tokens := []}, 0}
       end;
+
     timeout -> 
-      %% TODO SOMETHING 
-      ?INF("Get Conn timeout!", {self(), err_timeout(conn_timeout)}),
+      %% TODO SOMETHING
       {noreply, S#{state := free}, err_timeout(conn_timeout)};
     {err,{pool_not_found,_}} -> 
       %% TODO SOMETHING
-      ?INF("pool_not_found", pool_not_found),
       {noreply, S#{state := free, tokens := []}, 0}
   end.
 
 
-do_send(<<"ios">>,      C, T, P) -> epush4_ios:push(C, T, P);
-do_send(<<"android">>,  C, T, P) -> epush4_android:push(C, T, P);
-do_send(<<"windows">>,  C, T, P) -> epush4_windows:push(C, T, P);
-do_send(<<"facebook">>, C, T, P) -> epush4_facebook:push(C, T, P).
+%%
+do_send(<<"ios">>,      Conn, Token, Payload) -> epush4_ios:push(Conn, Token, Payload);
+do_send(<<"android">>,  Conn, Token, Payload) -> epush4_android:push(Conn, Token, Payload);
+do_send(<<"windows">>,  Conn, Token, Payload) -> epush4_windows:push(Conn, Token, Payload);
+do_send(<<"facebook">>, Conn, Token, Payload) -> epush4_facebook:push(Conn, Token, Payload).
+
 %
-err_timeout(conn_error)    -> 10000 + random_int(20000);
-err_timeout(conn_timeout)  -> 10000 + random_int(20000).
+err_timeout(conn_error)    -> ?now + 50000 + random_int(20000);
+err_timeout(conn_timeout)  -> ?now + 50000 + random_int(20000).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -157,16 +157,20 @@ manage_response(#{slot      := Slot,
                   fmfa      := {M,F,A}},  Res) ->
   %?INF("Feedback", {M,F,A}),
   FeedbackFun = fun
-    (Fu, [{_, ok}|Rs], Acc) -> Fu(Fu, Rs, orddict:update_counter(ok, 1, Acc));
-    (Fu, [{_, {ok, Desc}}|Rs], Acc) -> Fu(Fu, Rs, orddict:update_counter({ok, Desc}, 1, Acc));
-    (Fu, [{T, R} |Rs], Acc) -> 
+    (Fu, [{_,   ok}|Rs],           Acc) -> Fu(Fu, Rs, orddict:update_counter(ok, 1, Acc));
+    (Fu, [{_,  {ok, Desc}}|Rs],    Acc) -> Fu(Fu, Rs, orddict:update_counter({ok, Desc}, 1, Acc));
+    (Fu, [{_, [{ok, Desc}]}|Rs],   Acc) -> Fu(Fu, Rs, orddict:update_counter({ok, Desc}, 1, Acc));
+    (Fu, [{_,  [ok]}|Rs],          Acc) -> Fu(Fu, Rs, orddict:update_counter(ok, 1, Acc));
+    (Fu, [{T, [{ok, Desc}|R]}|Rs], Acc) -> Fu(Fu, [{T, R}|Rs], orddict:update_counter({ok, Desc}, 1, Acc));
+    (Fu, [{T,  [ok|R]}|Rs],        Acc) -> Fu(Fu, [{T, R}|Rs], orddict:update_counter(ok, 1, Acc));
+    (Fu, [{T, R} |Rs],             Acc) -> 
       %% TODO add platfrom and token src to feedback
       FeedbackArgs = #{platform => Platform,
                        src      => Src,
                        token    => T,
                        result   => R},
       try erlang:apply(M, F, lists:append(A, [FeedbackArgs]))
-      catch E:R -> ?INF("Feedback error", {E,R, {M, F, lists:append(A, [FeedbackArgs])}})
+      catch FE:FR -> ?INF("Feedback error", {self(), FE,FR, {M, F, lists:append(A, [FeedbackArgs])}})
       end,
       case R of
         {err, {{new_token, _}, Desc}} ->  %% rewrite for stat android new token error
@@ -187,11 +191,10 @@ manage_response(#{slot      := Slot,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conns
 get_conn(Pool) ->
-  ers:get_conn(Pool, _LeaseTime = ?CONN_LEASE_TIME, _Timeout = 1500). %% wait for free conection 10sec
+  ers:get_conn(Pool, _LeaseTime = 10000, _Timeout = 500). %% wait for free conection 10sec
 ret_conn(Pool, Conn) ->
   ers:ret_conn(Pool, Conn).
 
-      
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Keys
 get_key(ConnPid, Platform) ->
@@ -207,5 +210,7 @@ get_key(ConnPid, Platform) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SYS MISC
 random_int(1) -> 1;
-random_int(N) -> rand:uniform(N).
+random_int(N) ->
+  rand:seed(exs64, erlang:timestamp()),
+  rand:uniform(N).
 

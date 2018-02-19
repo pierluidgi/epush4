@@ -45,7 +45,7 @@ push(Key, Token, Payload) ->
       {ok, "404",  _RetHeaders, _BodyData} -> ?e(not_registered);
       {ok, "410",  _RetHeaders, _BodyData} -> ?e(not_registered);
       {ok, Status, _RetHeaders, _BodyData} ->
-          %?INF("Windows push error", {?p, {Status, RetHeaders, BodyData}}),
+          ?INF("Windows push error", {?p, {Status, _RetHeaders, _BodyData}}),
           ?e(unknown_response_error, Status);
       {error, {url_parsing_failed, {error,invalid_uri}}} -> ?e(not_registered); %% Some broken url. delete it
       Else ->

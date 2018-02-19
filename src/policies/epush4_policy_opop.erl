@@ -146,7 +146,7 @@ manage_response(#{slot      := Slot,
                        token    => T,
                        result   => R},
       try erlang:apply(M, F, lists:append(A, [FeedbackArgs]))
-      catch FE:FR -> ?INF("Feedback error", {FE,FR, {M, F, lists:append(A, [FeedbackArgs])}})
+      catch FE:FR -> ?INF("Feedback error", {self(), FE,FR, {M, F, lists:append(A, [FeedbackArgs])}})
       end,
       case R of
         {err, {{new_token, _}, Desc}} ->  %% rewrite for stat android new token error
