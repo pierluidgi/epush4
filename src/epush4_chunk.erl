@@ -199,21 +199,21 @@ state_(S = #{tokens := Tokens}) -> S#{tokens := length(Tokens)}.
 %
 add_(S = #{policy := <<"simple">>},Msg)    -> {reply,ok,epush4_policy_simple:add(S, Msg),500};
 add_(S = #{policy := <<"simple_tz">>},Msg) -> {reply,ok,epush4_policy_simple_tz:add(S, Msg),500};
-add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop:add(S, Msg),500}.
-add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop_tz:add(S, Msg),500}.
+add_(S = #{policy := <<"opop">>},  Msg)    -> {reply,ok,epush4_policy_opop:add(S, Msg),500};
+add_(S = #{policy := <<"opop_tz">>},  Msg) -> {reply,ok,epush4_policy_opop_tz:add(S, Msg),500}.
 
 
 %
 send_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:send(S);
 send_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:send(S);
-send_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:send(S).
+send_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:send(S);
 send_(S = #{policy := <<"opop_tz">>})   -> epush4_policy_opop_tz:send(S).
 
 
 %
 timeout_(S = #{policy := <<"simple">>})    -> epush4_policy_simple:timeout(S);
 timeout_(S = #{policy := <<"simple_tz">>}) -> epush4_policy_simple_tz:timeout(S);
-timeout_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:timeout(S).
+timeout_(S = #{policy := <<"opop">>})      -> epush4_policy_opop:timeout(S);
 timeout_(S = #{policy := <<"opop_tz">>})   -> epush4_policy_opop_tz:timeout(S).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
