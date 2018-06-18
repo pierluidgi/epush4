@@ -65,7 +65,11 @@ add(S = #{tokens := OldTokens, state := State, slot_data := SD, push_tags := PT}
     free ->
       PD = maps:get(push_data, SD),
       SendTime = maps:get(<<"send_time">>, PD),
-      TimeZone = maps:get(<<"tz">>, PT, -5), %% NY time zone by default
+      TimeZone = 
+        case maps:get(<<"tz">>, PT, -5) of %% NY time zone by default
+          V when is_integer(V) -> V;
+          _ -> ?INF("wrong_tz", PT), -5
+        end,
       %?INF("Add simple TZ", {length(Tokens), TimeZone, PT}),
       Now = ?now,
       DeltaTZ = TimeZone * 60 * 60,
