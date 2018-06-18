@@ -33,8 +33,8 @@ push(Key, Token, Payload) ->
   Options = ?IBROWSE_OPTIONS("application/json"),
   Headers = [
     {"Authorization", Key},
-    {"Content-Type",  "text/xml"},
-    {"X-WNS-Type",    "wns/toast"}, % X-WNS-Type: wns/toast | wns/badge | wns/tile | wns/raw
+    {"Content-Type",  "application/octet-stream"},
+    {"X-WNS-Type",    "wns/raw"}, % X-WNS-Type: wns/toast | wns/badge | wns/tile | wns/raw
     {"X-WNS-RequestForStatus", "true"}],
   
   try
