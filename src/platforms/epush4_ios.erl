@@ -2,6 +2,10 @@
 %% Ios push sending
 %%
 
+%%
+%% https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/APNSOverview.html
+%%
+
 
 -module(epush4_ios).
 
@@ -23,9 +27,10 @@ push(Conn, {Token, u}, Payload) ->
   res_parse(Res);
 push(Conn, {Token, ApnsTopic}, Payload) ->
   RequestHeaders = [
-    {<<":method">>,    <<"POST">>}, 
-    {<<":path">>,      <<"/3/device/", Token/binary>>},
-    {<<"apns-topic">>, ApnsTopic}],
+    {<<":method">>,         <<"POST">>}, 
+    {<<":path">>,           <<"/3/device/", Token/binary>>},
+    {<<"apns-expiration">>, integer_to_binary(?now + 60*60*24)}, %% 24 hour
+    {<<"apns-topic">>,      ApnsTopic}],
   %?INF("IOS push with apns:", RequestHeaders),
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
   res_parse(Res).

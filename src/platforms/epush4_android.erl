@@ -16,8 +16,8 @@
 
 
 %% 
--define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
-%-define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
+%-define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
+-define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
 -define(SEND_TIMEOUT, 4000).
 
 
