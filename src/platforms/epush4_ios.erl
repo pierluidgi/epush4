@@ -2,6 +2,10 @@
 %% Ios push sending
 %%
 
+%%
+%% https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/APNSOverview.html
+%%
+
 
 -module(epush4_ios).
 
