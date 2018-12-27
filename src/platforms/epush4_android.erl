@@ -17,7 +17,8 @@
 
 %% 
 %-define(URL, "https://gcm-http.googleapis.com/gcm/send").  %% Old
--define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
+%-define(URL, "https://fcm.googleapis.com/fcm/send").        %% New
+-define(URL, "https://fcm.googleapis.com/v1/projects/jigsaw-puzzles-5000/messages:send").        %% New
 -define(SEND_TIMEOUT, 4000).
 
 
@@ -33,20 +34,22 @@
 
 push(Key, #{<<"token">> := Token}, Payload) ->
   push(Key, Token, Payload);
-push(Key, Token, Payload) ->
+push({Url, AccessToken}, Token, Payload = #{<<"message">> := Msg}) ->
   %io:format("~w:~w Msg ~p~n", [?MODULE, ?LINE, Msg]),
   Options = ?IBROWSE_OPTIONS("application/json"),
   Headers = [
-    {"Authorization", lists:append("key=", Key)},
+    %{"Authorization", lists:append("key=", Key)},
+    {"Authorization", lists:append("Bearer ", AccessToken)},
     {"Content-Type", "application/json"}],
-  AndroidMsg = jsx:encode(Payload#{<<"to">> => Token}),
-  send_message(Options, Headers, Token, AndroidMsg).
+  AndroidMsg = jsx:encode(Payload#{<<"message">> := Msg#{<<"token">> => Token}}),
+  send_message(Url, Options, Headers, Token, AndroidMsg).
 
 
 %
-send_message(Options, Headers, Token, AndroidMsg) ->
-  case ibrowse:send_req(?URL, Headers, post, AndroidMsg, Options, ?SEND_TIMEOUT) of
+send_message(Url, Options, Headers, Token, AndroidMsg) ->
+  case ibrowse:send_req(Url, Headers, post, AndroidMsg, Options, ?SEND_TIMEOUT) of
     {ok, "200", _RetHeaders, BodyData}  -> parse_answer(list_to_binary(BodyData));
+    {ok, "404", _RetHeaders, _BodyData} -> ?e(not_registered);        %% Delete token
     {ok, "401", _RetHeaders, _BodyData} -> ?e(invalid_key);
     {error, req_timedout} -> ?e(timeout);
     {error, {conn_failed,error}} -> ?e(conn_failed);
@@ -74,7 +77,8 @@ parse_answer(Json) ->
     true ->
       case jsx:decode(Json, [return_maps]) of
         #{<<"results">> := [Result]} -> ErrFun(Result);
-        _ -> ?e(unparseble_response)
+        #{<<"name">>    := _}        -> {ok, ?p};
+        Else -> ?INF("Else", Else), ?e(unparseble_response)
       end;
     false -> ?e(unparseble_response)
   end.
