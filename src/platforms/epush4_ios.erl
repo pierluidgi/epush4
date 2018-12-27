@@ -21,7 +21,9 @@ push(Conn, {#{<<"token">> := Token}, ApnsTopic}, Payload) ->
 push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
     {<<":method">>, <<"POST">>}, 
-    {<<":path">>,   <<"/3/device/", Token/binary>>}],
+    {<<":path">>,   <<"/3/device/", Token/binary>>},
+    {<<"apns-expiration">>, integer_to_binary(?now + 60*60*24)} %% 24 hour
+  ],
   %?INF("IOS push without apns:", RequestHeaders),
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
   res_parse(Res);
