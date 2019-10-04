@@ -22,7 +22,9 @@ push(Conn, {Token, u}, Payload) ->
   RequestHeaders = [
     {<<":method">>, <<"POST">>}, 
     {<<":path">>,   <<"/3/device/", Token/binary>>},
-    {<<"apns-expiration">>, integer_to_binary(?now + 60*60*24)} %% 24 hour
+    {<<"apns-expiration">>, integer_to_binary(?now + 60*60*24)}, %% 24 hour
+    {<<"apns-push-type">>,  <<"alert">>},
+    {<<"apns-priority">>,   <<"5">>}
   ],
   %?INF("IOS push without apns:", RequestHeaders),
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
@@ -32,7 +34,9 @@ push(Conn, {Token, ApnsTopic}, Payload) ->
     {<<":method">>,         <<"POST">>}, 
     {<<":path">>,           <<"/3/device/", Token/binary>>},
     {<<"apns-expiration">>, integer_to_binary(?now + 60*60*24)}, %% 24 hour
-    {<<"apns-topic">>,      ApnsTopic}],
+    {<<"apns-topic">>,      ApnsTopic},
+    {<<"apns-push-type">>,  <<"alert">>},
+    {<<"apns-priority">>,   <<"5">>}],
   %?INF("IOS push with apns:", RequestHeaders),
   Res = h2_client:sync_request(Conn, RequestHeaders, Payload),
   res_parse(Res).
